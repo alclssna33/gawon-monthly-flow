@@ -13,18 +13,17 @@ export type SidebarFilters = {
 
 type Props = {
   filters: SidebarFilters
-  availableYears: string[]   // pie 차트용 연도 목록
-  availableMonths: string[]  // pie 차트용 월 목록
+  availableYears: string[]
+  availableMonths: string[]
   loading: boolean
   onChange: (f: SidebarFilters) => void
   onLoad: () => void
-  onPieChange: () => void
 }
 
 const YEAR_OPTIONS = [1, 3, 5, 10, 15, 20, 30]
 
 export default function Sidebar({
-  filters, availableYears, availableMonths, loading, onChange, onLoad, onPieChange,
+  filters, availableYears, availableMonths, loading, onChange, onLoad,
 }: Props) {
   const set = (patch: Partial<SidebarFilters>) => onChange({ ...filters, ...patch })
 
@@ -102,10 +101,7 @@ export default function Sidebar({
             <label className="block text-xs text-gray-500 mb-1">연도</label>
             <select
               value={filters.pieYear}
-              onChange={e => {
-                set({ pieYear: e.target.value, pieMonth: '' })
-                setTimeout(onPieChange, 0)
-              }}
+              onChange={e => set({ pieYear: e.target.value, pieMonth: '' })}
               className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 text-sm"
             >
               <option value="">선택 안함</option>
@@ -118,7 +114,7 @@ export default function Sidebar({
             <label className="block text-xs text-gray-500 mb-1">월 (연도 선택 시 활성화)</label>
             <select
               value={filters.pieMonth}
-              onChange={e => { set({ pieMonth: e.target.value }); setTimeout(onPieChange, 0) }}
+              onChange={e => set({ pieMonth: e.target.value })}
               disabled={!filters.pieYear}
               className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 text-sm disabled:opacity-50"
             >

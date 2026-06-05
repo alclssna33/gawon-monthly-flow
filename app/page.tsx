@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import Sidebar, { type SidebarFilters } from './components/Sidebar'
 import ChartNational from './components/ChartNational'
 import ChartDetail from './components/ChartDetail'
@@ -38,6 +38,7 @@ export default function Dashboard() {
   const [detailRegion, setDetailRegion] = useState('전국')
   const [loaded, setLoaded] = useState(false)
 
+  // ── Graph 1~2, 4, 5: 메인 데이터 로드 ──────────────────
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
@@ -46,30 +47,23 @@ export default function Dashboard() {
         specialty: filters.specialty,
       })
 
-      // Graph 1, 2: 지역별 월별 집계
-      const flowRes = await fetch(`/api/monthly-flow?${params}`)
-      const flow: FlowRow[] = await flowRes.json()
-      setFlowData(flow)
-
-      // 월 목록 추출 (정렬)
-      const allMonths = [...new Set(flow.map(r => r.date))].sort()
-      setMonths(allMonths)
-
-      // 파이차트용 연도 목록
-      const years = [...new Set(allMonths.map(m => m.slice(0, 4)))].sort((a, b) => +b - +a)
-      setAvailableYears(years)
-
-      // Graph 4: 과목별 누적 추이
-      const [specFlowRes, rankRes] = await Promise.all([
+      const [flowRes, specFlowRes, rankRes] = await Promise.all([
+        fetch(`/api/monthly-flow?${params}`),
         fetch(`/api/specialty-flow?years=${filters.years}`),
         fetch(`/api/top-rankings?years=${filters.years}`),
       ])
+
+      const flow: FlowRow[] = await flowRes.json()
+      setFlowData(flow)
+
+      const allMonths = [...new Set(flow.map(r => r.date))].sort()
+      setMonths(allMonths)
+      setAvailableYears([...new Set(allMonths.map(m => m.slice(0, 4)))].sort((a, b) => +b - +a))
+
       const specFlow: SpecialtyFlowRow[] = await specFlowRes.json()
       setSpecialtyFlowData(specFlow)
-      const foundSpecialties = [...new Set(specFlow.map(r => r.specialty))].sort()
-      setSpecialties(foundSpecialties)
+      setSpecialties([...new Set(specFlow.map(r => r.specialty))].sort())
 
-      // Graph 5: TOP 10
       const rankings: RankingsData = await rankRes.json()
       setRankingsData(rankings)
 
@@ -83,24 +77,31 @@ export default function Dashboard() {
     }
   }, [filters])
 
-  const loadPieData = useCallback(async () => {
-    if (!filters.pieYear) { setPieData([]); return }
+  // ── Graph 3: pieYear / pieMonth 변경 시 자동 fetch ──────
+  useEffect(() => {
+    if (!filters.pieYear) {
+      setPieData([])
+      return
+    }
     const params = new URLSearchParams({ year: filters.pieYear })
     if (filters.pieMonth) params.set('month', filters.pieMonth)
-    const res = await fetch(`/api/pie-data?${params}`)
-    const data: PieRow[] = await res.json()
-    setPieData(data)
 
-    if (filters.pieYear && !filters.pieMonth) {
-      // 월 목록 업데이트
-      const months = [...new Set(
-        flowData.filter(r => r.date.startsWith(filters.pieYear)).map(r => r.date.slice(5, 7))
-      )].sort()
-      setAvailableMonths(months)
-    }
-  }, [filters.pieYear, filters.pieMonth, flowData])
+    fetch(`/api/pie-data?${params}`)
+      .then(r => r.json())
+      .then((data: PieRow[]) => setPieData(data))
+      .catch(console.error)
+  }, [filters.pieYear, filters.pieMonth])
 
-  // Graph 2용: 선택된 region의 flow 데이터만 필터
+  // ── pieYear 변경 시 availableMonths 업데이트 ────────────
+  useEffect(() => {
+    if (!filters.pieYear || !flowData.length) { setAvailableMonths([]); return }
+    const months = [...new Set(
+      flowData.filter(r => r.date.startsWith(filters.pieYear)).map(r => r.date.slice(5, 7))
+    )].sort()
+    setAvailableMonths(months)
+  }, [filters.pieYear, flowData])
+
+  // ── 파생 값 ─────────────────────────────────────────────
   const detailFlowData = detailRegion === '전국'
     ? flowData
     : flowData.filter(r => r.region1 === detailRegion)
@@ -122,7 +123,6 @@ export default function Dashboard() {
         loading={loading}
         onChange={setFilters}
         onLoad={loadData}
-        onPieChange={loadPieData}
       />
 
       <div className="flex-1 flex flex-col overflow-y-auto">

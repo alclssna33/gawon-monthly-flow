@@ -21,7 +21,10 @@ export async function GET(req: NextRequest) {
   }
 
   const fromDate = `${date}-01`
-  const toDate = `${date}-31`
+  // 월의 실제 마지막 날 계산 (4,6,9,11월=30일, 2월=28/29일, 나머지=31일)
+  const [y, m] = date.split('-').map(Number)
+  const lastDay = new Date(y, m, 0).getDate() // new Date(year, month, 0) = 해당월 마지막날
+  const toDate = `${date}-${String(lastDay).padStart(2, '0')}`
 
   let query = supabase
     .from('clinics')
