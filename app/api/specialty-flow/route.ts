@@ -14,17 +14,26 @@ export async function GET(req: NextRequest) {
   const years   = parseInt(searchParams.get('years') ?? '3')
   const region1 = searchParams.get('region1') ?? ''
 
-  const { data, error } = await supabase.rpc('get_specialty_flow', {
-    p_years: years,
-    p_region1: region1,
-  })
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  // RPC 기본 limit=1000 우회: 페이지네이션으로 전체 수집
+  const PAGE = 1000
+  const all: { date: string; specialty: string; count: number }[] = []
+  let offset = 0
+  while (true) {
+    const { data, error } = await supabase.rpc('get_specialty_flow', {
+      p_years: years,
+      p_region1: region1,
+    }).range(offset, offset + PAGE - 1)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (!data || data.length === 0) break
+    all.push(...data)
+    if (data.length < PAGE) break
+    offset += PAGE
+  }
 
-  // DB 과목명 → 표시명 변환
-  const result = (data ?? []).map((r: { date: string; specialty: string; count: number }) => ({
-    date: r.date,
+  const result = all.map(r => ({
+    date:      r.date,
     specialty: toDisplayName(r.specialty),
-    count: r.count,
+    count:     r.count,
   }))
 
   return NextResponse.json(result)
