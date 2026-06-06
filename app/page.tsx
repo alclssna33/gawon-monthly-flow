@@ -30,6 +30,7 @@ export default function Dashboard() {
   const [pieData, setPieData] = useState<PieRow[]>([])
   const [rankingsData, setRankingsData] = useState<RankingsData | null>(null)
   const [specialtyFlowData, setSpecialtyFlowData] = useState<SpecialtyFlowRow[]>([])
+  const [closureFlowData, setClosureFlowData] = useState<SpecialtyFlowRow[]>([])
   const [specialties, setSpecialties] = useState<string[]>([])
   const [months, setMonths] = useState<string[]>([])
   const [availableYears, setAvailableYears] = useState<string[]>([])
@@ -37,6 +38,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false)
   const [detailRegion, setDetailRegion] = useState('전국')
   const [loaded, setLoaded] = useState(false)
+  const [graph4Region, setGraph4Region] = useState('')  // '' = 전국
 
   // ── Graph 1~2, 4, 5: 메인 데이터 로드 ──────────────────
   const loadData = useCallback(async () => {
@@ -47,9 +49,15 @@ export default function Dashboard() {
         specialty: filters.specialty,
       })
 
-      const [flowRes, specFlowRes, rankRes] = await Promise.all([
+      const specFlowParams = new URLSearchParams({
+        years: String(filters.years),
+        region1: graph4Region,
+      })
+
+      const [flowRes, specFlowRes, closureFlowRes, rankRes] = await Promise.all([
         fetch(`/api/monthly-flow?${params}`),
-        fetch(`/api/specialty-flow?years=${filters.years}`),
+        fetch(`/api/specialty-flow?${specFlowParams}`),
+        fetch(`/api/specialty-closure-flow?${specFlowParams}`),
         fetch(`/api/top-rankings?years=${filters.years}`),
       ])
 
@@ -64,6 +72,9 @@ export default function Dashboard() {
       setSpecialtyFlowData(specFlow)
       setSpecialties([...new Set(specFlow.map(r => r.specialty))].sort())
 
+      const closureFlow: SpecialtyFlowRow[] = await closureFlowRes.json()
+      setClosureFlowData(closureFlow)
+
       const rankings: RankingsData = await rankRes.json()
       setRankingsData(rankings)
 
@@ -76,6 +87,20 @@ export default function Dashboard() {
       setLoading(false)
     }
   }, [filters])
+
+  // ── Graph 4: 지역 변경 시 개원/폐원 데이터 재로드 ────────
+  useEffect(() => {
+    if (!loaded) return
+    const p = new URLSearchParams({ years: String(filters.years), region1: graph4Region })
+    Promise.all([
+      fetch(`/api/specialty-flow?${p}`).then(r => r.json()),
+      fetch(`/api/specialty-closure-flow?${p}`).then(r => r.json()),
+    ]).then(([open, close]) => {
+      setSpecialtyFlowData(open)
+      setClosureFlowData(close)
+      setSpecialties([...new Set((open as SpecialtyFlowRow[]).map(r => r.specialty))].sort())
+    }).catch(console.error)
+  }, [graph4Region])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Graph 3: pieYear / pieMonth 변경 시 자동 fetch ──────
   useEffect(() => {
@@ -183,21 +208,24 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Graph 4: 누적 추이 */}
-        <div className="min-h-[500px] p-4 border-b border-gray-200">
+        {/* Graph 4: 누적 추이 (개원/폐원/Net) */}
+        <div className="min-h-[520px] p-4 border-b border-gray-200">
           <h2 className="text-lg font-bold text-gray-700 mb-2">
-            📈 전공과목별 누적 개원 수 추이{' '}
+            📈 전공과목별 누적 추이{' '}
             <span className="text-sm font-normal text-gray-500">
-              {loaded ? `(최근 ${filters.years}년, 누적 개원 수)` : ''}
+              {loaded ? `(최근 ${filters.years}년${graph4Region ? ` · ${graph4Region}` : ' · 전국'})` : ''}
             </span>
           </h2>
-          <div className="h-[450px]">
+          <div className="h-[460px]">
             {loaded ? (
               <ChartStackedArea
-                data={flowData}
                 months={months}
-                specialtyData={specialtyFlowData}
+                openData={specialtyFlowData}
+                closeData={closureFlowData}
                 specialties={specialties}
+                years={filters.years}
+                region1={graph4Region}
+                onRegionChange={setGraph4Region}
               />
             ) : (
               <div className="h-full bg-white rounded-lg shadow-sm flex items-center justify-center text-gray-400 text-sm">
