@@ -7,7 +7,6 @@ import ChartDetail from './components/ChartDetail'
 import ChartPie from './components/ChartPie'
 import ChartStackedArea from './components/ChartStackedArea'
 import ChartTopRankings from './components/ChartTopRankings'
-import { toDisplayName } from '@/lib/specialtyMap'
 
 type FlowRow = { date: string; region1: string; count: number }
 type PieRow = { specialty: string; count: number }
@@ -17,6 +16,9 @@ type RankingsData = {
 }
 type SpecialtyFlowRow = { date: string; specialty: string; count: number }
 
+const FACILITY_TYPES = ['의원', '한의원', '치과의원'] as const
+type FacilityType = typeof FACILITY_TYPES[number]
+
 export default function Dashboard() {
   const [filters, setFilters] = useState<SidebarFilters>({
     region: '전국',
@@ -25,6 +27,8 @@ export default function Dashboard() {
     pieYear: '',
     pieMonth: '',
   })
+
+  const [facilityType, setFacilityType] = useState<FacilityType>('의원')
 
   const [flowData, setFlowData] = useState<FlowRow[]>([])
   const [pieData, setPieData] = useState<PieRow[]>([])
@@ -38,27 +42,33 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false)
   const [detailRegion, setDetailRegion] = useState('전국')
   const [loaded, setLoaded] = useState(false)
-  const [graph4Region, setGraph4Region] = useState('')  // '' = 전국
+  const [graph4Region, setGraph4Region] = useState('')
 
-  // ── Graph 1~2, 4, 5: 메인 데이터 로드 ──────────────────
+  // ── 메인 데이터 로드 (mogaha_registry 기반) ─────────────
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams({
-        years: String(filters.years),
-        specialty: filters.specialty,
+      const ft = facilityType
+      const baseParams = new URLSearchParams({
+        years:        String(filters.years),
+        facilityType: ft,
       })
-
-      const specFlowParams = new URLSearchParams({
-        years: String(filters.years),
-        region1: graph4Region,
+      const flowParams = new URLSearchParams({
+        years:        String(filters.years),
+        specialty:    filters.specialty,
+        facilityType: ft,
+      })
+      const g4Params = new URLSearchParams({
+        years:        String(filters.years),
+        facilityType: ft,
+        region1:      graph4Region,
       })
 
       const [flowRes, specFlowRes, closureFlowRes, rankRes] = await Promise.all([
-        fetch(`/api/monthly-flow?${params}`),
-        fetch(`/api/specialty-flow?${specFlowParams}`),
-        fetch(`/api/specialty-closure-flow?${specFlowParams}`),
-        fetch(`/api/top-rankings?years=${filters.years}`),
+        fetch(`/api/mr/monthly-flow?${flowParams}`),
+        fetch(`/api/mr/specialty-flow?${g4Params}`),
+        fetch(`/api/mr/closure-flow?${g4Params}`),
+        fetch(`/api/mr/top-rankings?${baseParams}`),
       ])
 
       const flow: FlowRow[] = await flowRes.json()
@@ -86,15 +96,17 @@ export default function Dashboard() {
     } finally {
       setLoading(false)
     }
-  }, [filters])
+  }, [filters, facilityType])  // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Graph 4: 지역 변경 시 개원/폐원 데이터 재로드 ────────
+  // ── Graph 4: 지역 변경 시 재로드 ─────────────────────────
   useEffect(() => {
     if (!loaded) return
-    const p = new URLSearchParams({ years: String(filters.years), region1: graph4Region })
+    const p = new URLSearchParams({
+      years: String(filters.years), facilityType, region1: graph4Region,
+    })
     Promise.all([
-      fetch(`/api/specialty-flow?${p}`).then(r => r.json()),
-      fetch(`/api/specialty-closure-flow?${p}`).then(r => r.json()),
+      fetch(`/api/mr/specialty-flow?${p}`).then(r => r.json()),
+      fetch(`/api/mr/closure-flow?${p}`).then(r => r.json()),
     ]).then(([open, close]) => {
       setSpecialtyFlowData(open)
       setClosureFlowData(close)
@@ -102,42 +114,39 @@ export default function Dashboard() {
     }).catch(console.error)
   }, [graph4Region])  // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Graph 3: pieYear / pieMonth 변경 시 자동 fetch ──────
+  // ── Graph 3: pieYear/pieMonth 변경 시 자동 fetch ─────────
   useEffect(() => {
-    if (!filters.pieYear) {
-      setPieData([])
-      return
-    }
-    const params = new URLSearchParams({ year: filters.pieYear })
-    if (filters.pieMonth) params.set('month', filters.pieMonth)
-
-    fetch(`/api/pie-data?${params}`)
+    if (!filters.pieYear) { setPieData([]); return }
+    const p = new URLSearchParams({ year: filters.pieYear, facilityType })
+    if (filters.pieMonth) p.set('month', filters.pieMonth)
+    fetch(`/api/mr/pie-data?${p}`)
       .then(r => r.json())
-      .then((data: PieRow[]) => setPieData(data))
+      .then((d: PieRow[]) => setPieData(d))
       .catch(console.error)
-  }, [filters.pieYear, filters.pieMonth])
+  }, [filters.pieYear, filters.pieMonth, facilityType])
 
-  // ── pieYear 변경 시 availableMonths 업데이트 ────────────
+  // ── availableMonths 업데이트 ─────────────────────────────
   useEffect(() => {
     if (!filters.pieYear || !flowData.length) { setAvailableMonths([]); return }
-    const months = [...new Set(
+    const ms = [...new Set(
       flowData.filter(r => r.date.startsWith(filters.pieYear)).map(r => r.date.slice(5, 7))
     )].sort()
-    setAvailableMonths(months)
+    setAvailableMonths(ms)
   }, [filters.pieYear, flowData])
 
-  // ── 파생 값 ─────────────────────────────────────────────
+  // ── 파생 값 ──────────────────────────────────────────────
   const detailFlowData = detailRegion === '전국'
     ? flowData
     : flowData.filter(r => r.region1 === detailRegion)
 
-  const subtitleText = `(${filters.specialty === '전체' ? '전체' : filters.specialty}, 최근 ${filters.years}년)`
+  const ftLabel = facilityType
+  const subtitleText = `(${filters.specialty === '전체' ? '전체' : filters.specialty}, 최근 ${filters.years}년, ${ftLabel})`
   const pieSubtitle = filters.pieYear
-    ? `(${filters.pieYear}년${filters.pieMonth ? ` ${parseInt(filters.pieMonth)}월` : ' 전체'}, 총 ${pieData.reduce((s, r) => s + r.count, 0)}건)`
+    ? `(${filters.pieYear}년${filters.pieMonth ? ` ${parseInt(filters.pieMonth)}월` : ' 전체'}, 총 ${pieData.reduce((s, r) => s + r.count, 0)}건, ${ftLabel})`
     : ''
 
-  const topRegions = (rankingsData?.regions ?? []).map(r => ({ label: r.region1, count: r.count }))
-  const topSpecialties = (rankingsData?.specialties ?? []).map(r => ({ label: toDisplayName(r.specialty), count: r.count }))
+  const topRegions     = (rankingsData?.regions ?? []).map(r => ({ label: r.region1, count: r.count }))
+  const topSpecialties = (rankingsData?.specialties ?? []).map(r => ({ label: r.specialty, count: r.count }))
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ fontFamily: "'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif" }}>
@@ -152,10 +161,33 @@ export default function Dashboard() {
 
       <div className="flex-1 flex flex-col overflow-y-auto">
 
+        {/* 기관 종류 선택 바 */}
+        <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 border-b border-gray-200">
+          <span className="text-sm text-gray-500 font-medium">기관 종류:</span>
+          {FACILITY_TYPES.map(ft => (
+            <button
+              key={ft}
+              onClick={() => { setFacilityType(ft); setLoaded(false) }}
+              className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                facilityType === ft
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+              }`}
+            >
+              {ft}
+            </button>
+          ))}
+          {loaded && (
+            <span className="ml-2 text-xs text-gray-400">
+              ※ 기관 변경 후 데이터 불러오기 버튼을 눌러주세요
+            </span>
+          )}
+        </div>
+
         {/* Graph 1: 지역별 개원 흐름 */}
         <div className="h-[55%] min-h-[400px] p-4 border-b border-gray-200">
           <h2 className="text-lg font-bold text-gray-700 mb-2">
-            📊 지역별 개원 흐름 (전국){' '}
+            📊 지역별 개원 흐름{' '}
             <span className="text-sm font-normal text-gray-500">{subtitleText}</span>
           </h2>
           <div className="relative h-[calc(100%-2.5rem)]">
@@ -213,7 +245,7 @@ export default function Dashboard() {
           <h2 className="text-lg font-bold text-gray-700 mb-2">
             📈 전공과목별 누적 추이{' '}
             <span className="text-sm font-normal text-gray-500">
-              {loaded ? `(최근 ${filters.years}년${graph4Region ? ` · ${graph4Region}` : ' · 전국'})` : ''}
+              {loaded ? `(최근 ${filters.years}년${graph4Region ? ` · ${graph4Region}` : ' · 전국'} · ${ftLabel})` : ''}
             </span>
           </h2>
           <div className="h-[460px]">
@@ -240,7 +272,7 @@ export default function Dashboard() {
           <h2 className="text-lg font-bold text-gray-700 mb-2">
             🏆 상위 랭킹{' '}
             <span className="text-sm font-normal text-gray-500">
-              {loaded ? `(최근 ${filters.years}년 기준)` : ''}
+              {loaded ? `(최근 ${filters.years}년, ${ftLabel})` : ''}
             </span>
           </h2>
           {loaded && rankingsData ? (
