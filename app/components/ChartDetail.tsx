@@ -100,7 +100,7 @@ export default function ChartDetail({ region, data, closeData, months, specialty
         callbacks: {
           title: ctx => ctx[0].label ?? '',
           label: ctx => {
-            const v = ctx.parsed.y
+            const v = ctx.parsed.y ?? 0
             return mode === 'net'
               ? `Net: ${v >= 0 ? '+' : ''}${v}건`
               : `${MODE_LABELS[mode]}: ${v}건`

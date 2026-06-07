@@ -92,7 +92,7 @@ export default function ChartStackedArea({
       legend: { position: 'right', labels: { boxWidth: 12, font: { size: 10 }, padding: 6 } },
       tooltip: {
         callbacks: {
-          label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString()}건`,
+          label: ctx => `${ctx.dataset.label}: ${(ctx.parsed.y ?? 0).toLocaleString()}건`,
         },
       },
     },
