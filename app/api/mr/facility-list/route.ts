@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
   const nextYm = `${nextY}-${String(nextM).padStart(2, '0')}-01`
 
   let query = supabase.from('mogaha_registry')
-    .select('name, address, specialty, region1, region2, license_date, closed_date, is_closed')
+    .select('name, address, specialty, region1, region2, license_date, closed_date, is_closed, is_transfer')
     .gte(dateCol, `${ym}-01`)
     .lt(dateCol, nextYm)
     .limit(200)

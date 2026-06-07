@@ -11,7 +11,7 @@ import HospitalListPopup from './HospitalListPopup'
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend)
 
 type FlowRow = { date: string; region1: string; count: number }
-type Hospital = { name: string; address: string | null; region1: string | null; region2: string | null }
+type Hospital = { name: string; address: string | null; region1: string | null; region2: string | null; is_transfer?: boolean | null }
 type Mode = 'open' | 'close' | 'net'
 
 type Props = {
