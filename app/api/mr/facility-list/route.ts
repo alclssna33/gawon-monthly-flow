@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { toDbName } from '@/lib/specialtyMap'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -37,7 +38,7 @@ export async function GET(req: NextRequest) {
   if (facilityType) query = query.eq('facility_type', facilityType)
   if (region1)      query = query.eq('region1', region1)
   if (region2)      query = query.eq('region2', region2)
-  if (specialty)    query = query.eq('specialty', specialty)
+  if (specialty)    query = query.eq('specialty', toDbName(specialty))
   if (mode === 'close') query = query.eq('is_closed', true)
 
   const { data, error } = await query
