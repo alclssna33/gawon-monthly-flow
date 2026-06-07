@@ -184,7 +184,7 @@ export default function ChartYoY({
         <div className="flex-1 min-h-0 flex flex-col">
           <p className="text-xs font-semibold text-gray-600 mb-1">
             🗺️ 지역별 YoY — {specLabel}
-            <span className="font-normal text-gray-400 ml-1">(최근 12개월)</span>
+            <span className="font-normal text-gray-400 ml-1">(전년도 전체 vs 전전년도 전체)</span>
           </p>
           <div className="flex-1 min-h-0">
             <Bar data={regionData} options={regionOpts} />
@@ -193,7 +193,7 @@ export default function ChartYoY({
         <div className="flex-1 min-h-0 flex flex-col">
           <p className="text-xs font-semibold text-gray-600 mb-1">
             🏥 과목별 YoY — {regionLabel}
-            <span className="font-normal text-gray-400 ml-1">(최근 12개월)</span>
+            <span className="font-normal text-gray-400 ml-1">(전년도 전체 vs 전전년도 전체)</span>
           </p>
           <div className="flex-1 min-h-0">
             <Bar data={specData} options={specOpts} />
