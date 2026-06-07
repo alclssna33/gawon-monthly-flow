@@ -1,12 +1,11 @@
 'use client'
 
-import { useRef, useState, useCallback } from 'react'
+import { useRef, useState, useCallback, useMemo } from 'react'
 import {
   Chart as ChartJS, BarElement, CategoryScale, LinearScale, Tooltip, Legend,
   type ChartData, type ChartOptions,
 } from 'chart.js'
 import { Bar } from 'react-chartjs-2'
-import { METROPOLISES } from '@/lib/regions'
 import HospitalListPopup from './HospitalListPopup'
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend)
@@ -17,94 +16,80 @@ type Mode = 'open' | 'close' | 'net'
 
 type Props = {
   region: string
-  data: FlowRow[]         // 개원 데이터
-  closeData: FlowRow[]    // 폐원 데이터
+  data: FlowRow[]
+  closeData: FlowRow[]
   months: string[]
   specialty: string
   facilityType: string
 }
 
 const MODE_LABELS: Record<Mode, string> = { open: '개원', close: '폐원', net: 'Net' }
-const MODE_COLORS: Record<Mode, string> = {
-  open:  'rgba(59,130,246,0.75)',   // 파랑
-  close: 'rgba(239,68,68,0.75)',    // 빨강
-  net:   'rgba(34,197,94,0.75)',    // 초록 (플러스)
-}
-const NET_NEG_COLOR = 'rgba(239,68,68,0.6)'  // Net 음수 = 빨강
-
-function getColor(idx: number, total: number) {
-  return `hsla(${Math.floor((idx / total) * 240)},65%,55%,0.8)`
-}
 
 export default function ChartDetail({ region, data, closeData, months, specialty, facilityType }: Props) {
   const [mode, setMode] = useState<Mode>('open')
   const [popup, setPopup] = useState<{ title: string; hospitals: Hospital[]; position: 'left' | 'right' } | null>(null)
-  const [pinned, setPinned] = useState(false)
   const chartRef = useRef<ChartJS<'bar'> | null>(null)
-  const lastHoverKey = useRef<string>('')
-  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const isMetro = METROPOLISES.has(region)
+  // 월별 합계
+  const openByMonth = useMemo(() => {
+    const m: Record<string, number> = {}
+    for (const row of data) m[row.date] = (m[row.date] ?? 0) + row.count
+    return m
+  }, [data])
 
-  // 월별 합계 계산
-  const openByMonth: Record<string, number> = {}
-  const closeByMonth: Record<string, number> = {}
-  for (const row of data)      openByMonth[row.date]  = (openByMonth[row.date]  ?? 0) + row.count
-  for (const row of closeData) closeByMonth[row.date] = (closeByMonth[row.date] ?? 0) + row.count
+  const closeByMonth = useMemo(() => {
+    const m: Record<string, number> = {}
+    for (const row of closeData) m[row.date] = (m[row.date] ?? 0) + row.count
+    return m
+  }, [closeData])
 
-  // 모드별 데이터셋 생성
-  let chartData: ChartData<'bar'>
-  const labels = [region]
+  // 모드별 값 배열 (labels=months, 단일 dataset)
+  const values = useMemo(() => months.map(m => {
+    if (mode === 'open')  return openByMonth[m]  ?? 0
+    if (mode === 'close') return closeByMonth[m] ?? 0
+    return (openByMonth[m] ?? 0) - (closeByMonth[m] ?? 0)
+  }), [mode, months, openByMonth, closeByMonth])
 
-  if (mode === 'open' || mode === 'close') {
-    const byMonth = mode === 'open' ? openByMonth : closeByMonth
-    chartData = {
-      labels,
-      datasets: months.map((m, idx) => ({
-        label: m,
-        data: [byMonth[m] ?? 0],
-        backgroundColor: mode === 'open'
-          ? getColor(idx, months.length)
-          : `hsla(${Math.floor((idx / months.length) * 30) + 0},75%,55%,0.8)`,
-      })),
-    }
-  } else {
-    // Net = 개원 - 폐원
-    chartData = {
-      labels,
-      datasets: months.map((m, idx) => {
-        const net = (openByMonth[m] ?? 0) - (closeByMonth[m] ?? 0)
-        return {
-          label: m,
-          data: [net],
-          backgroundColor: net >= 0
-            ? `hsla(${130 + idx},60%,50%,0.8)`
-            : NET_NEG_COLOR,
-        }
-      }),
-    }
+  const barColors = useMemo(() => values.map((v, i) => {
+    if (mode === 'net') return v >= 0 ? 'hsla(130,60%,50%,0.8)' : 'rgba(239,68,68,0.7)'
+    const hue = mode === 'open'
+      ? Math.floor((i / Math.max(months.length, 1)) * 240)
+      : Math.floor((i / Math.max(months.length, 1)) * 30)
+    return `hsla(${hue},65%,55%,0.8)`
+  }), [mode, values, months])
+
+  const chartData: ChartData<'bar'> = {
+    labels: months,
+    datasets: [{
+      label: MODE_LABELS[mode],
+      data: values,
+      backgroundColor: barColors,
+    }],
   }
 
-  const fetchHospitals = useCallback(async (
-    date: string, r1: string, isRight: boolean, pin: boolean
-  ) => {
+  const fetchHospitals = useCallback(async (date: string, isRight: boolean) => {
+    if (!region || region === '전국') return
+
     const params = new URLSearchParams({
       date,
-      region1:      r1,
-      facilityType: facilityType ?? '의원',
+      region1:      region,
+      facilityType: facilityType || '의원',
       mode:         mode === 'close' ? 'close' : 'open',
     })
-    if (specialty !== '전체') params.set('specialty', specialty)
+    if (specialty && specialty !== '전체') params.set('specialty', specialty)
 
-    const res = await fetch(`/api/mr/facility-list?${params}`)
-    const hospitals: Hospital[] = await res.json()
-    if (!hospitals.length) { setPopup(null); return }
-
-    const modeLabel = mode === 'close' ? '폐원' : '개원'
-    const title = `📋 ${date} ${modeLabel} — ${r1} (${hospitals.length}건)`
-    setPopup({ title, hospitals, position: isRight ? 'left' : 'right' })
-    if (pin) setPinned(true)
-  }, [specialty, facilityType, mode])
+    try {
+      const res = await fetch(`/api/mr/facility-list?${params}`)
+      const hospitals: Hospital[] = await res.json()
+      if (!Array.isArray(hospitals) || !hospitals.length) { setPopup(null); return }
+      const modeLabel = mode === 'close' ? '폐원' : '개원'
+      setPopup({
+        title: `📋 ${date} ${modeLabel} — ${region} (${hospitals.length}건)`,
+        hospitals,
+        position: isRight ? 'left' : 'right',
+      })
+    } catch { setPopup(null) }
+  }, [region, specialty, facilityType, mode])
 
   const options: ChartOptions<'bar'> = {
     responsive: true,
@@ -113,7 +98,7 @@ export default function ChartDetail({ region, data, closeData, months, specialty
       legend: { display: false },
       tooltip: {
         callbacks: {
-          title: ctx => ctx[0].dataset.label ?? '',
+          title: ctx => ctx[0].label ?? '',
           label: ctx => {
             const v = ctx.parsed.y
             return mode === 'net'
@@ -123,56 +108,34 @@ export default function ChartDetail({ region, data, closeData, months, specialty
         },
         displayColors: false,
         backgroundColor: 'rgba(255,255,255,0.95)',
-        titleColor: '#000', bodyColor: '#000', borderColor: '#ccc', borderWidth: 1,
+        titleColor: '#333', bodyColor: '#333', borderColor: '#ccc', borderWidth: 1,
       },
     },
     scales: {
-      x: {
-        stacked: false,
-        ticks: { autoSkip: false, maxRotation: 45, minRotation: 45, font: { size: 10 } },
-        grid: { display: false },
-      },
+      x: { ticks: { autoSkip: false, maxRotation: 45, minRotation: 45, font: { size: 10 } }, grid: { display: false } },
       y: { beginAtZero: mode !== 'net' },
     },
     onHover: (event, elements) => {
       const el = event.native?.target as HTMLElement
-      if (el) el.style.cursor = elements.length ? 'pointer' : 'default'
-      if (pinned || mode === 'net') return
-      if (!elements.length) {
-        if (hoverTimer.current) clearTimeout(hoverTimer.current)
-        lastHoverKey.current = ''
-        setPopup(null)
-        return
-      }
-      const { datasetIndex } = elements[0]
-      const month = months[datasetIndex]
-      const hoverKey = `${month}|${region}|${mode}`
-      if (hoverKey === lastHoverKey.current) return
-      lastHoverKey.current = hoverKey
-      if (hoverTimer.current) clearTimeout(hoverTimer.current)
-      hoverTimer.current = setTimeout(() => {
-        const isRight = (event.x ?? 0) >= (chartRef.current?.width ?? 0) / 2
-        fetchHospitals(month, region, isRight, false)
-      }, 150)
+      if (el) el.style.cursor = (elements.length && mode !== 'net') ? 'pointer' : 'default'
     },
     onClick: (event, elements) => {
       if (!elements.length || mode === 'net') return
-      const { datasetIndex } = elements[0]
+      const month = months[elements[0].index]
+      if (!month) return
       const isRight = (event.x ?? 0) >= (chartRef.current?.width ?? 0) / 2
-      if (hoverTimer.current) clearTimeout(hoverTimer.current)
-      setPinned(false)
-      fetchHospitals(months[datasetIndex], region, isRight, true)
+      fetchHospitals(month, isRight)
     },
   }
 
   return (
     <div className="relative h-full w-full bg-white rounded-lg shadow-sm p-2 pb-6 flex flex-col gap-1">
       {/* 탭 */}
-      <div className="flex gap-1">
+      <div className="flex gap-1 items-center">
         {(['open', 'close', 'net'] as Mode[]).map(m => (
           <button
             key={m}
-            onClick={() => { setMode(m); setPopup(null); setPinned(false) }}
+            onClick={() => { setMode(m); setPopup(null) }}
             className={`px-3 py-0.5 rounded text-xs font-semibold transition-colors ${
               mode === m
                 ? m === 'open'  ? 'bg-blue-600 text-white'
@@ -184,10 +147,8 @@ export default function ChartDetail({ region, data, closeData, months, specialty
             {MODE_LABELS[m]}
           </button>
         ))}
-        {mode === 'net' && (
-          <span className="ml-2 text-xs text-gray-400 self-center">
-            클릭 팝업 미지원 (Net은 개원-폐원 차이값)
-          </span>
+        {region === '전국' && (
+          <span className="ml-2 text-xs text-gray-400">상단 지역 막대 클릭 후 사용</span>
         )}
       </div>
 
@@ -201,7 +162,7 @@ export default function ChartDetail({ region, data, closeData, months, specialty
           title={popup.title}
           hospitals={popup.hospitals}
           position={popup.position}
-          onClose={() => { setPinned(false); setPopup(null) }}
+          onClose={() => setPopup(null)}
         />
       )}
     </div>
