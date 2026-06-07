@@ -262,6 +262,7 @@ export default function Dashboard() {
                 months={months}
                 specialty={filters.specialty}
                 facilityType={facilityType}
+                years={filters.years}
               />
             ) : (
               <div className="h-full bg-white rounded-lg shadow-sm flex items-center justify-center text-gray-400 text-sm">

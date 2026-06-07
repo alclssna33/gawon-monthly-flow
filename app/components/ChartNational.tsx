@@ -24,9 +24,10 @@ type Props = {
 // 기본적으로 ON/OFF 가능한 "큰 지역" 목록
 const TOGGLEABLE = ['전국', '서울', '경기도']
 
-function getColor(idx: number, total: number, alpha = 0.8) {
-  const hue = Math.floor((idx / total) * 360)
-  return `hsla(${hue},70%,60%,${alpha})`
+function getColor(idx: number, total: number) {
+  // 단일 파란색 계열 — 오래된 월은 연하게, 최근 월은 진하게
+  const lightness = 75 - Math.floor((idx / Math.max(total - 1, 1)) * 30)  // 75% → 45%
+  return `hsla(215,70%,${lightness}%,0.85)`
 }
 
 export default function ChartNational({ data, months, specialty, onRegionClick }: Props) {
@@ -83,7 +84,7 @@ export default function ChartNational({ data, months, specialty, onRegionClick }
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 } } },
+      legend: { display: false },
       tooltip: {
         callbacks: {
           title: ctx => ctx[0].dataset.label ?? '',
