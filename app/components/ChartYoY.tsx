@@ -102,7 +102,7 @@ export default function ChartYoY({
         callbacks: {
           label: ctx => {
             const row = byRegion[ctx.dataIndex]
-            return `YoY: ${(ctx.parsed.x ?? 0) >= 0 ? '+' : ''}${ctx.parsed.x ?? 0}% (${row.this_period}건→${row.prev_period}건)`
+            return `YoY: ${(ctx.parsed.x ?? 0) >= 0 ? '+' : ''}${ctx.parsed.x ?? 0}% (전전년 ${row.prev_period}건→전년 ${row.this_period}건)`
           },
         },
       },
@@ -138,7 +138,7 @@ export default function ChartYoY({
         callbacks: {
           label: ctx => {
             const row = bySpecialty[ctx.dataIndex]
-            return `YoY: ${(ctx.parsed.x ?? 0) >= 0 ? '+' : ''}${ctx.parsed.x ?? 0}% (${row.this_period}건→${row.prev_period}건)`
+            return `YoY: ${(ctx.parsed.x ?? 0) >= 0 ? '+' : ''}${ctx.parsed.x ?? 0}% (전전년 ${row.prev_period}건→전년 ${row.this_period}건)`
           },
         },
       },
