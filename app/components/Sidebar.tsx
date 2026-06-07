@@ -4,7 +4,6 @@ import { REGIONS } from '@/lib/regions'
 import { SPECIALTY_ORDER } from '@/lib/specialtyMap'
 
 export type SidebarFilters = {
-  region: string
   specialty: string
   years: number
   pieYear: string
@@ -49,16 +48,9 @@ export default function Sidebar({
         </a>
       </div>
 
-      {/* 지역 선택 */}
-      <div>
-        <label className="block text-sm font-semibold text-gray-600 mb-1">📍 지역 선택</label>
-        <select
-          value={filters.region}
-          onChange={e => set({ region: e.target.value })}
-          className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 text-sm"
-        >
-          {REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
-        </select>
+      {/* 지역 안내 */}
+      <div className="text-xs text-gray-400 bg-gray-50 rounded p-2">
+        📍 지역 선택: 상단 그래프의 지역 막대를 클릭하세요
       </div>
 
       {/* 진료과목 */}

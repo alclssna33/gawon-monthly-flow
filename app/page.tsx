@@ -21,7 +21,6 @@ type FacilityType = typeof FACILITY_TYPES[number]
 
 export default function Dashboard() {
   const [filters, setFilters] = useState<SidebarFilters>({
-    region: '전국',
     specialty: '전체',
     years: 3,
     pieYear: '',
@@ -93,7 +92,7 @@ export default function Dashboard() {
       const rankings: RankingsData = await rankRes.json()
       setRankingsData(rankings)
 
-      setDetailRegion(filters.region)
+      setDetailRegion('전국')
       setLoaded(true)
     } catch (e) {
       console.error(e)
@@ -205,7 +204,10 @@ export default function Dashboard() {
                 data={flowData}
                 months={months}
                 specialty={filters.specialty}
-                onRegionClick={r => setDetailRegion(r)}
+                onRegionClick={r => {
+                  setDetailRegion(r)
+                  setGraph4Region(r === '전국' ? '' : r)
+                }}
               />
             ) : (
               <div className="h-full bg-white rounded-lg shadow-sm flex items-center justify-center text-gray-400 text-sm">
@@ -219,7 +221,9 @@ export default function Dashboard() {
         <div className="h-[45%] min-h-[350px] p-4 border-b border-gray-200">
           <h2 className="text-lg font-bold text-gray-700 mb-2">
             📍 상세 지역 흐름{' '}
-            <span className="text-sm font-normal text-blue-600 ml-2">- {detailRegion}</span>
+            <span className="text-sm font-normal text-blue-600 ml-2">
+              {detailRegion === '전국' ? '— 상단 그래프에서 지역을 클릭하세요' : `— ${detailRegion}`}
+            </span>
           </h2>
           <div className="relative h-[calc(100%-2.5rem)]">
             {loaded ? (
