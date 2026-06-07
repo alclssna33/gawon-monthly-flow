@@ -31,6 +31,7 @@ export default function Dashboard() {
   const [facilityType, setFacilityType] = useState<FacilityType>('의원')
 
   const [flowData, setFlowData] = useState<FlowRow[]>([])
+  const [closureFlowMonthly, setClosureFlowMonthly] = useState<FlowRow[]>([])
   const [pieData, setPieData] = useState<PieRow[]>([])
   const [rankingsData, setRankingsData] = useState<RankingsData | null>(null)
   const [specialtyFlowData, setSpecialtyFlowData] = useState<SpecialtyFlowRow[]>([])
@@ -64,8 +65,9 @@ export default function Dashboard() {
         region1:      graph4Region,
       })
 
-      const [flowRes, specFlowRes, closureFlowRes, rankRes] = await Promise.all([
+      const [flowRes, closureMonthlyRes, specFlowRes, closureFlowRes, rankRes] = await Promise.all([
         fetch(`/api/mr/monthly-flow?${flowParams}`),
+        fetch(`/api/mr/monthly-closure-flow?${flowParams}`),
         fetch(`/api/mr/specialty-flow?${g4Params}`),
         fetch(`/api/mr/closure-flow?${g4Params}`),
         fetch(`/api/mr/top-rankings?${baseParams}`),
@@ -73,6 +75,9 @@ export default function Dashboard() {
 
       const flow: FlowRow[] = await flowRes.json()
       setFlowData(flow)
+
+      const closureMonthly: FlowRow[] = await closureMonthlyRes.json()
+      setClosureFlowMonthly(closureMonthly)
 
       const allMonths = [...new Set(flow.map(r => r.date))].sort()
       setMonths(allMonths)
@@ -138,6 +143,10 @@ export default function Dashboard() {
   const detailFlowData = detailRegion === '전국'
     ? flowData
     : flowData.filter(r => r.region1 === detailRegion)
+
+  const detailClosureData = detailRegion === '전국'
+    ? closureFlowMonthly
+    : closureFlowMonthly.filter(r => r.region1 === detailRegion)
 
   const ftLabel = facilityType
   const subtitleText = `(${filters.specialty === '전체' ? '전체' : filters.specialty}, 최근 ${filters.years}년, ${ftLabel})`
@@ -217,8 +226,10 @@ export default function Dashboard() {
               <ChartDetail
                 region={detailRegion}
                 data={detailFlowData}
+                closeData={detailClosureData}
                 months={months}
                 specialty={filters.specialty}
+                facilityType={facilityType}
               />
             ) : (
               <div className="h-full bg-white rounded-lg shadow-sm flex items-center justify-center text-gray-400 text-sm">
