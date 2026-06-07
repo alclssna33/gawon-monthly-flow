@@ -28,14 +28,18 @@ function yoyColor(v: number | null, highlight = false) {
   return v > 0 ? `rgba(34,197,94,${a})` : `rgba(239,68,68,${a})`
 }
 
-// 연도별 YoY 계산 (count 배열에서)
+// 연도별 YoY 계산 (count 배열에서) — 현재 연도는 제외 (불완전)
 function calcYoY(trend: TrendRow[]): { year: number; yoy: number | null }[] {
-  return trend.map((row, i) => {
-    if (i === 0) return { year: row.year, yoy: null }
-    const prev = trend[i - 1].count
-    if (!prev) return { year: row.year, yoy: null }
-    return { year: row.year, yoy: Math.round((row.count - prev) / prev * 1000) / 10 }
-  }).filter(r => r.yoy !== null)
+  const currentYear = new Date().getFullYear()
+  return trend
+    .filter(row => row.year < currentYear)
+    .map((row, i, filtered) => {
+      if (i === 0) return { year: row.year, yoy: null }
+      const prev = filtered[i - 1].count
+      if (!prev) return { year: row.year, yoy: null }
+      return { year: row.year, yoy: Math.round((row.count - prev) / prev * 1000) / 10 }
+    })
+    .filter(r => r.yoy !== null)
 }
 
 export default function ChartYoY({
