@@ -86,7 +86,7 @@ export default function ChartDetail({ region, data, closeData, months, specialty
   }
 
   const fetchHospitals = useCallback(async (
-    date: string, r1: string, r2: string | null, isRight: boolean, pin: boolean
+    date: string, r1: string, isRight: boolean, pin: boolean
   ) => {
     const params = new URLSearchParams({
       date,
@@ -94,16 +94,14 @@ export default function ChartDetail({ region, data, closeData, months, specialty
       facilityType: facilityType ?? '의원',
       mode:         mode === 'close' ? 'close' : 'open',
     })
-    if (r2) params.set('region2', r2)
     if (specialty !== '전체') params.set('specialty', specialty)
 
     const res = await fetch(`/api/mr/facility-list?${params}`)
     const hospitals: Hospital[] = await res.json()
     if (!hospitals.length) { setPopup(null); return }
 
-    const locLabel = r2 ? `${r1} ${r2}` : r1
-    const modeLabel = mode === 'close' ? '폐원' : mode === 'net' ? 'Net' : '개원'
-    const title = `📋 ${date} ${modeLabel}\n${locLabel} (${hospitals.length}건)`
+    const modeLabel = mode === 'close' ? '폐원' : '개원'
+    const title = `📋 ${date} ${modeLabel} — ${r1} (${hospitals.length}건)`
     setPopup({ title, hospitals, position: isRight ? 'left' : 'right' })
     if (pin) setPinned(true)
   }, [specialty, facilityType, mode])
@@ -154,7 +152,7 @@ export default function ChartDetail({ region, data, closeData, months, specialty
       if (hoverTimer.current) clearTimeout(hoverTimer.current)
       hoverTimer.current = setTimeout(() => {
         const isRight = (event.x ?? 0) >= (chartRef.current?.width ?? 0) / 2
-        fetchHospitals(month, region, isMetro ? null : region, isRight, false)
+        fetchHospitals(month, region, isRight, false)
       }, 150)
     },
     onClick: (event, elements) => {
@@ -163,7 +161,7 @@ export default function ChartDetail({ region, data, closeData, months, specialty
       const isRight = (event.x ?? 0) >= (chartRef.current?.width ?? 0) / 2
       if (hoverTimer.current) clearTimeout(hoverTimer.current)
       setPinned(false)
-      fetchHospitals(months[datasetIndex], region, isMetro ? null : region, isRight, true)
+      fetchHospitals(months[datasetIndex], region, isRight, true)
     },
   }
 

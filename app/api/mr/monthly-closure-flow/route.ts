@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { toDbName } from '@/lib/specialtyMap'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
   while (true) {
     const { data, error } = await supabase.rpc('mr_monthly_closure_flow', {
       p_years:         years,
-      p_specialty:     specialty === '전체' ? '' : specialty,
+      p_specialty:     specialty === '전체' ? '' : toDbName(specialty),
       p_facility_type: facilityType,
       p_region1:       region1,
     }).range(offset, offset + PAGE - 1)
