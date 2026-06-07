@@ -6,7 +6,7 @@ import ChartNational from './components/ChartNational'
 import ChartDetail from './components/ChartDetail'
 import ChartPie from './components/ChartPie'
 import ChartStackedArea from './components/ChartStackedArea'
-import ChartTopRankings from './components/ChartTopRankings'
+import ChartYoY from './components/ChartYoY'
 
 type FlowRow = { date: string; region1: string; count: number }
 type PieRow = { specialty: string; count: number }
@@ -32,7 +32,9 @@ export default function Dashboard() {
   const [flowData, setFlowData] = useState<FlowRow[]>([])
   const [closureFlowMonthly, setClosureFlowMonthly] = useState<FlowRow[]>([])
   const [pieData, setPieData] = useState<PieRow[]>([])
-  const [rankingsData, setRankingsData] = useState<RankingsData | null>(null)
+  const [yoyTrend,      setYoyTrend]      = useState<{year:number;count:number}[]>([])
+  const [yoyByRegion,   setYoyByRegion]   = useState<{region1:string;this_period:number;prev_period:number;yoy_pct:number|null}[]>([])
+  const [yoyBySpecialty,setYoyBySpecialty]= useState<{specialty:string;this_period:number;prev_period:number;yoy_pct:number|null}[]>([])
   const [specialtyFlowData, setSpecialtyFlowData] = useState<SpecialtyFlowRow[]>([])
   const [closureFlowData, setClosureFlowData] = useState<SpecialtyFlowRow[]>([])
   const [specialties, setSpecialties] = useState<string[]>([])
@@ -64,13 +66,26 @@ export default function Dashboard() {
         region1:      graph4Region,
       })
 
-      const [flowRes, closureMonthlyRes, specFlowRes, closureFlowRes, rankRes] = await Promise.all([
+      const yoyBaseParams = new URLSearchParams({ facilityType: ft })
+      const yoyTrendParams = new URLSearchParams({
+        facilityType: ft,
+        region1:   graph4Region,
+        specialty: filters.specialty,
+      })
+      const yoyRegionParams = new URLSearchParams({ facilityType: ft, specialty: filters.specialty })
+      const yoySpecParams   = new URLSearchParams({ facilityType: ft, region1: graph4Region })
+
+      const [flowRes, closureMonthlyRes, specFlowRes, closureFlowRes,
+             trendRes, yoyRegionRes, yoySpecRes] = await Promise.all([
         fetch(`/api/mr/monthly-flow?${flowParams}`),
         fetch(`/api/mr/monthly-closure-flow?${flowParams}`),
         fetch(`/api/mr/specialty-flow?${g4Params}`),
         fetch(`/api/mr/closure-flow?${g4Params}`),
-        fetch(`/api/mr/top-rankings?${baseParams}`),
+        fetch(`/api/mr/yearly-trend?${yoyTrendParams}`),
+        fetch(`/api/mr/yoy-by-region?${yoyRegionParams}`),
+        fetch(`/api/mr/yoy-by-specialty?${yoySpecParams}`),
       ])
+      void yoyBaseParams
 
       const flow: FlowRow[] = await flowRes.json()
       setFlowData(flow)
@@ -89,8 +104,9 @@ export default function Dashboard() {
       const closureFlow: SpecialtyFlowRow[] = await closureFlowRes.json()
       setClosureFlowData(closureFlow)
 
-      const rankings: RankingsData = await rankRes.json()
-      setRankingsData(rankings)
+      setYoyTrend(await trendRes.json())
+      setYoyByRegion(await yoyRegionRes.json())
+      setYoyBySpecialty(await yoySpecRes.json())
 
       setDetailRegion('전국')
       setLoaded(true)
@@ -117,6 +133,21 @@ export default function Dashboard() {
       setSpecialties([...new Set((open as SpecialtyFlowRow[]).map(r => r.specialty))].sort())
     }).catch(console.error)
   }, [graph4Region])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Graph 5: 지역 변경 시 YoY 재로드 ─────────────────────
+  useEffect(() => {
+    if (!loaded) return
+    const ft = facilityType
+    const trendP  = new URLSearchParams({ facilityType: ft, region1: graph4Region, specialty: filters.specialty })
+    const specP   = new URLSearchParams({ facilityType: ft, region1: graph4Region })
+    Promise.all([
+      fetch(`/api/mr/yearly-trend?${trendP}`).then(r => r.json()),
+      fetch(`/api/mr/yoy-by-specialty?${specP}`).then(r => r.json()),
+    ]).then(([trend, spec]) => {
+      setYoyTrend(trend)
+      setYoyBySpecialty(spec)
+    }).catch(console.error)
+  }, [detailRegion, graph4Region])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Graph 3: pieYear/pieMonth 변경 시 자동 fetch ─────────
   useEffect(() => {
@@ -152,9 +183,6 @@ export default function Dashboard() {
   const pieSubtitle = filters.pieYear
     ? `(${filters.pieYear}년${filters.pieMonth ? ` ${parseInt(filters.pieMonth)}월` : ' 전체'}, 총 ${pieData.reduce((s, r) => s + r.count, 0)}건, ${ftLabel})`
     : ''
-
-  const topRegions     = (rankingsData?.regions ?? []).map(r => ({ label: r.region1, count: r.count }))
-  const topSpecialties = (rankingsData?.specialties ?? []).map(r => ({ label: r.specialty, count: r.count }))
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ fontFamily: "'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif" }}>
@@ -282,24 +310,31 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Graph 5: TOP 10 */}
+        {/* Graph 5: YoY 성장률 */}
         <div className="min-h-[600px] p-4 bg-gray-50">
           <h2 className="text-lg font-bold text-gray-700 mb-2">
-            🏆 상위 랭킹{' '}
+            📊 YoY 성장률{' '}
             <span className="text-sm font-normal text-gray-500">
-              {loaded ? `(최근 ${filters.years}년, ${ftLabel})` : ''}
+              {loaded
+                ? `(${detailRegion === '전국' ? '전국' : detailRegion} · ${filters.specialty} · ${ftLabel})`
+                : ''}
             </span>
           </h2>
-          {loaded && rankingsData ? (
-            <div className="grid grid-cols-2 gap-4">
-              <ChartTopRankings title="📍 지역 TOP 10" items={topRegions} colorOffset={0} />
-              <ChartTopRankings title="🏥 전공과목 TOP 10" items={topSpecialties} colorOffset={5} />
-            </div>
-          ) : (
-            <div className="h-48 bg-white rounded-lg shadow-sm flex items-center justify-center text-gray-400 text-sm">
-              데이터 불러오기 버튼을 눌러주세요.
-            </div>
-          )}
+          <div className="h-[560px]">
+            {loaded ? (
+              <ChartYoY
+                trendData={yoyTrend}
+                byRegion={yoyByRegion}
+                bySpecialty={yoyBySpecialty}
+                selectedRegion={detailRegion === '전국' ? '' : detailRegion}
+                selectedSpecialty={filters.specialty}
+              />
+            ) : (
+              <div className="h-full bg-white rounded-lg shadow-sm flex items-center justify-center text-gray-400 text-sm">
+                데이터 불러오기 버튼을 눌러주세요.
+              </div>
+            )}
+          </div>
         </div>
 
       </div>
