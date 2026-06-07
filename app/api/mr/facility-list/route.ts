@@ -22,10 +22,16 @@ export async function GET(req: NextRequest) {
   const dateCol = mode === 'close' ? 'closed_date' : 'license_date'
   const ym = date.slice(0, 7)
 
-  let query = supabase.table('mogaha_registry')
+  // 다음 달 계산 (월말 날짜 문제 회피)
+  const [y, m] = ym.split('-').map(Number)
+  const nextM = m === 12 ? 1 : m + 1
+  const nextY = m === 12 ? y + 1 : y
+  const nextYm = `${nextY}-${String(nextM).padStart(2, '0')}-01`
+
+  let query = supabase.from('mogaha_registry')
     .select('name, address, specialty, region1, region2, license_date, closed_date, is_closed')
     .gte(dateCol, `${ym}-01`)
-    .lte(dateCol, `${ym}-31`)
+    .lt(dateCol, nextYm)
     .limit(200)
 
   if (facilityType) query = query.eq('facility_type', facilityType)
