@@ -112,7 +112,16 @@ export default function ChartDetail({ region, data, closeData, months, specialty
       },
     },
     scales: {
-      x: { ticks: { autoSkip: false, maxRotation: 45, minRotation: 45, font: { size: 10 } }, grid: { display: false } },
+      x: {
+        ticks: {
+          autoSkip: true,
+          maxTicksLimit: months.length > 60 ? 20 : months.length > 24 ? 36 : months.length,
+          maxRotation: 45,
+          minRotation: 0,
+          font: { size: 10 },
+        },
+        grid: { display: false },
+      },
       y: { beginAtZero: mode !== 'net' },
     },
     onHover: (event, elements) => {
