@@ -32,9 +32,12 @@ export default function Dashboard() {
   const [flowData, setFlowData] = useState<FlowRow[]>([])
   const [closureFlowMonthly, setClosureFlowMonthly] = useState<FlowRow[]>([])
   const [pieData, setPieData] = useState<PieRow[]>([])
-  const [yoyTrend,      setYoyTrend]      = useState<{year:number;count:number}[]>([])
-  const [yoyByRegion,   setYoyByRegion]   = useState<{region1:string;this_period:number;prev_period:number;yoy_pct:number|null}[]>([])
-  const [yoyBySpecialty,setYoyBySpecialty]= useState<{specialty:string;this_period:number;prev_period:number;yoy_pct:number|null}[]>([])
+  const [yoyTrend,         setYoyTrend]         = useState<{year:number;count:number}[]>([])
+  const [yoyByRegion,      setYoyByRegion]      = useState<{region1:string;this_period:number;prev_period:number;yoy_pct:number|null}[]>([])
+  const [yoyBySpecialty,   setYoyBySpecialty]   = useState<{specialty:string;this_period:number;prev_period:number;yoy_pct:number|null}[]>([])
+  const [yoyClosureTrend,  setYoyClosureTrend]  = useState<{year:number;count:number}[]>([])
+  const [yoyClosureRegion, setYoyClosureRegion] = useState<{region1:string;this_period:number;prev_period:number;yoy_pct:number|null}[]>([])
+  const [yoyClosureSpec,   setYoyClosureSpec]   = useState<{specialty:string;this_period:number;prev_period:number;yoy_pct:number|null}[]>([])
   const [specialtyFlowData, setSpecialtyFlowData] = useState<SpecialtyFlowRow[]>([])
   const [closureFlowData, setClosureFlowData] = useState<SpecialtyFlowRow[]>([])
   const [specialties, setSpecialties] = useState<string[]>([])
@@ -76,7 +79,8 @@ export default function Dashboard() {
       const yoySpecParams   = new URLSearchParams({ facilityType: ft, region1: graph4Region })
 
       const [flowRes, closureMonthlyRes, specFlowRes, closureFlowRes,
-             trendRes, yoyRegionRes, yoySpecRes] = await Promise.all([
+             trendRes, yoyRegionRes, yoySpecRes,
+             closureTrendRes, yoyClosureRegionRes, yoyClosureSpecRes] = await Promise.all([
         fetch(`/api/mr/monthly-flow?${flowParams}`),
         fetch(`/api/mr/monthly-closure-flow?${flowParams}`),
         fetch(`/api/mr/specialty-flow?${g4Params}`),
@@ -84,6 +88,9 @@ export default function Dashboard() {
         fetch(`/api/mr/yearly-trend?${yoyTrendParams}`),
         fetch(`/api/mr/yoy-by-region?${yoyRegionParams}`),
         fetch(`/api/mr/yoy-by-specialty?${yoySpecParams}`),
+        fetch(`/api/mr/yearly-closure-trend?${yoyTrendParams}`),
+        fetch(`/api/mr/yoy-closure-by-region?${yoyRegionParams}`),
+        fetch(`/api/mr/yoy-closure-by-specialty?${yoySpecParams}`),
       ])
       void yoyBaseParams
 
@@ -107,6 +114,9 @@ export default function Dashboard() {
       setYoyTrend(await trendRes.json())
       setYoyByRegion(await yoyRegionRes.json())
       setYoyBySpecialty(await yoySpecRes.json())
+      setYoyClosureTrend(await closureTrendRes.json())
+      setYoyClosureRegion(await yoyClosureRegionRes.json())
+      setYoyClosureSpec(await yoyClosureSpecRes.json())
 
       setDetailRegion('전국')
       setLoaded(true)
@@ -143,9 +153,13 @@ export default function Dashboard() {
     Promise.all([
       fetch(`/api/mr/yearly-trend?${trendP}`).then(r => r.json()),
       fetch(`/api/mr/yoy-by-specialty?${specP}`).then(r => r.json()),
-    ]).then(([trend, spec]) => {
+      fetch(`/api/mr/yearly-closure-trend?${trendP}`).then(r => r.json()),
+      fetch(`/api/mr/yoy-closure-by-specialty?${specP}`).then(r => r.json()),
+    ]).then(([trend, spec, closureTrend, closureSpec]) => {
       setYoyTrend(trend)
       setYoyBySpecialty(spec)
+      setYoyClosureTrend(closureTrend)
+      setYoyClosureSpec(closureSpec)
     }).catch(console.error)
   }, [detailRegion, graph4Region])  // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -327,6 +341,9 @@ export default function Dashboard() {
                 trendData={yoyTrend}
                 byRegion={yoyByRegion}
                 bySpecialty={yoyBySpecialty}
+                closureTrend={yoyClosureTrend}
+                closureByRegion={yoyClosureRegion}
+                closureBySpec={yoyClosureSpec}
                 selectedRegion={detailRegion === '전국' ? '' : detailRegion}
                 selectedSpecialty={filters.specialty}
               />
