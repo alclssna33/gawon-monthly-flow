@@ -12,7 +12,7 @@ ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend)
 
 type FlowRow = { date: string; region1: string; count: number }
 type Hospital = { name: string; address: string | null; region1: string | null; region2: string | null; is_transfer?: boolean | null }
-type Mode = 'open' | 'close' | 'net'
+type Mode = 'open' | 'close' | 'net' | 'rate'
 
 type Props = {
   region: string
@@ -24,7 +24,7 @@ type Props = {
   years: number
 }
 
-const MODE_LABELS: Record<Mode, string> = { open: '개원', close: '폐원', net: 'Net' }
+const MODE_LABELS: Record<Mode, string> = { open: '개원', close: '폐원', net: 'Net', rate: '폐원율' }
 
 export default function ChartDetail({ region, data, closeData, months, specialty, facilityType, years }: Props) {
   const [mode, setMode] = useState<Mode>('open')
@@ -100,6 +100,30 @@ export default function ChartDetail({ region, data, closeData, months, specialty
       }
     }
 
+    if (mode === 'rate') {
+      // 폐원율 = (폐원/개원) × 100%
+      const rateVals = months.map(m => {
+        const open = openByMonth[m] ?? 0
+        if (!open) return 0
+        const close = closeByMonth[m] ?? 0
+        return Math.round(close / open * 1000) / 10  // 소수점 1자리
+      })
+      return {
+        labels: months,
+        datasets: [{
+          label: '폐원율(%)',
+          data: rateVals,
+          backgroundColor: rateVals.map(v => {
+            // 낮을수록 초록, 높을수록 빨강
+            if (v <= 5) return 'rgba(34,197,94,0.8)'      // 초록
+            if (v <= 10) return 'rgba(59,130,246,0.8)'    // 파랑
+            if (v <= 20) return 'rgba(251,146,60,0.8)'    // 주황
+            return 'rgba(239,68,68,0.8)'                  // 빨강
+          }),
+        }],
+      }
+    }
+
     // Net
     return {
       labels: months,
@@ -151,6 +175,12 @@ export default function ChartDetail({ region, data, closeData, months, specialty
           label: ctx => {
             const v = ctx.parsed.y ?? 0
             if (mode === 'net') return `Net: ${v >= 0 ? '+' : ''}${v}건`
+            if (mode === 'rate') {
+              const month = ctx.label
+              const open = openByMonth[month] ?? 0
+              const close = closeByMonth[month] ?? 0
+              return `폐원율: ${v}% (폐원 ${close}건 / 개원 ${open}건)`
+            }
             return `${ctx.dataset.label}: ${v}건`
           },
           footer: ctx => {
@@ -183,10 +213,10 @@ export default function ChartDetail({ region, data, closeData, months, specialty
     },
     onHover: (event, elements) => {
       const el = event.native?.target as HTMLElement
-      if (el) el.style.cursor = (elements.length && mode !== 'net') ? 'pointer' : 'default'
+      if (el) el.style.cursor = (elements.length && mode !== 'net' && mode !== 'rate') ? 'pointer' : 'default'
     },
     onClick: (event, elements) => {
-      if (!elements.length || mode === 'net') return
+      if (!elements.length || mode === 'net' || mode === 'rate') return
       const month = months[elements[0].index]
       if (!month) return
       const isRight = (event.x ?? 0) >= (chartRef.current?.width ?? 0) / 2
@@ -198,7 +228,7 @@ export default function ChartDetail({ region, data, closeData, months, specialty
     <div className="relative h-full w-full bg-white rounded-lg shadow-sm p-2 pb-6 flex flex-col gap-1">
       {/* 탭 */}
       <div className="flex gap-1 items-center">
-        {(['open', 'close', 'net'] as Mode[]).map(m => (
+        {(['open', 'close', 'net', 'rate'] as Mode[]).map(m => (
           <button
             key={m}
             onClick={() => { setMode(m); setPopup(null) }}
@@ -206,7 +236,8 @@ export default function ChartDetail({ region, data, closeData, months, specialty
               mode === m
                 ? m === 'open'  ? 'bg-blue-600 text-white'
                 : m === 'close' ? 'bg-red-500 text-white'
-                :                 'bg-green-600 text-white'
+                : m === 'net'   ? 'bg-green-600 text-white'
+                :                 'bg-purple-600 text-white'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
