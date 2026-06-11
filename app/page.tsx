@@ -48,6 +48,7 @@ export default function Dashboard() {
   const [detailRegion, setDetailRegion] = useState('전국')
   const [loaded, setLoaded] = useState(false)
   const [graph4Region, setGraph4Region] = useState('')
+  const [regionPanelLoading, setRegionPanelLoading] = useState(false)
 
   // ── 메인 데이터 로드 (mogaha_registry 기반) ─────────────
   const loadData = useCallback(async () => {
@@ -128,12 +129,20 @@ export default function Dashboard() {
     }
   }, [filters, facilityType])  // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── 지역 변경 시 Graph 4/5 재로드 (로딩 표시 동기화) ─────
+  const [graph4Loading, setGraph4Loading] = useState(false)
+  const [graph5Loading, setGraph5Loading] = useState(false)
+  useEffect(() => {
+    setRegionPanelLoading(graph4Loading || graph5Loading)
+  }, [graph4Loading, graph5Loading])
+
   // ── Graph 4: 지역 변경 시 재로드 ─────────────────────────
   useEffect(() => {
     if (!loaded) return
     const p = new URLSearchParams({
       years: String(filters.years), facilityType, region1: graph4Region,
     })
+    setGraph4Loading(true)
     Promise.all([
       fetch(`/api/mr/specialty-flow?${p}`).then(r => r.json()),
       fetch(`/api/mr/closure-flow?${p}`).then(r => r.json()),
@@ -142,6 +151,7 @@ export default function Dashboard() {
       setClosureFlowData(close)
       setSpecialties([...new Set((open as SpecialtyFlowRow[]).map(r => r.specialty))].sort())
     }).catch(console.error)
+      .finally(() => setGraph4Loading(false))
   }, [graph4Region])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Graph 5: 지역 변경 시 YoY 재로드 ─────────────────────
@@ -150,6 +160,7 @@ export default function Dashboard() {
     const ft = facilityType
     const trendP  = new URLSearchParams({ facilityType: ft, region1: graph4Region, specialty: filters.specialty })
     const specP   = new URLSearchParams({ facilityType: ft, region1: graph4Region })
+    setGraph5Loading(true)
     Promise.all([
       fetch(`/api/mr/yearly-trend?${trendP}`).then(r => r.json()),
       fetch(`/api/mr/yoy-by-specialty?${specP}`).then(r => r.json()),
@@ -161,6 +172,7 @@ export default function Dashboard() {
       setYoyClosureTrend(closureTrend)
       setYoyClosureSpec(closureSpec)
     }).catch(console.error)
+      .finally(() => setGraph5Loading(false))
   }, [detailRegion, graph4Region])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Graph 3: pieYear/pieMonth 변경 시 자동 fetch ─────────
@@ -306,7 +318,15 @@ export default function Dashboard() {
               {loaded ? `(최근 ${filters.years}년${graph4Region ? ` · ${graph4Region}` : ' · 전국'} · ${ftLabel})` : ''}
             </span>
           </h2>
-          <div className="h-[460px]">
+          <div className="relative h-[460px]">
+            {loaded && regionPanelLoading && (
+              <div className="absolute inset-0 z-10 bg-white/60 flex items-center justify-center rounded-lg">
+                <span className="flex items-center gap-2 text-sm text-gray-500">
+                  <span className="inline-block w-4 h-4 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin" />
+                  지역 데이터 갱신 중...
+                </span>
+              </div>
+            )}
             {loaded ? (
               <ChartStackedArea
                 months={months}
@@ -335,7 +355,15 @@ export default function Dashboard() {
                 : ''}
             </span>
           </h2>
-          <div className="h-[560px]">
+          <div className="relative h-[560px]">
+            {loaded && regionPanelLoading && (
+              <div className="absolute inset-0 z-10 bg-white/60 flex items-center justify-center rounded-lg">
+                <span className="flex items-center gap-2 text-sm text-gray-500">
+                  <span className="inline-block w-4 h-4 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin" />
+                  지역 데이터 갱신 중...
+                </span>
+              </div>
+            )}
             {loaded ? (
               <ChartYoY
                 trendData={yoyTrend}

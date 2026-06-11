@@ -30,6 +30,7 @@ export default function ChartDetail({ region, data, closeData, months, specialty
   const [mode, setMode] = useState<Mode>('open')
   const [popup, setPopup] = useState<{ title: string; hospitals: Hospital[]; position: 'left' | 'right' } | null>(null)
   const [transferData, setTransferData] = useState<FlowRow[]>([])
+  const [transferLoading, setTransferLoading] = useState(false)
   const chartRef = useRef<ChartJS<'bar'> | null>(null)
 
   // 양수양도 데이터 로드 (개원 탭 + 지역 선택 시)
@@ -39,10 +40,12 @@ export default function ChartDetail({ region, data, closeData, months, specialty
       years: String(years), facilityType, region1: region,
       specialty: specialty === '전체' ? '' : specialty,
     })
+    setTransferLoading(true)
     fetch(`/api/mr/monthly-transfer-flow?${p}`)
       .then(r => r.json())
       .then(setTransferData)
       .catch(() => setTransferData([]))
+      .finally(() => setTransferLoading(false))
   }, [mode, region, years, facilityType, specialty])
 
   // 월별 합계
@@ -248,6 +251,12 @@ export default function ChartDetail({ region, data, closeData, months, specialty
           <span className="ml-2 text-xs text-gray-400">
             <span className="inline-block w-2.5 h-2.5 rounded-sm bg-orange-400 mr-1" />양수양도
             <span className="inline-block w-2.5 h-2.5 rounded-sm bg-blue-400 ml-2 mr-1" />신규개원
+          </span>
+        )}
+        {mode === 'open' && region !== '전국' && transferLoading && (
+          <span className="ml-1 text-xs text-gray-400 flex items-center gap-1">
+            <span className="inline-block w-3 h-3 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin" />
+            양수양도 분석 중...
           </span>
         )}
         {region === '전국' && (
